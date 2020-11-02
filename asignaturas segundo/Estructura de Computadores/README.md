@@ -1,6 +1,8 @@
 Estructura de Computadores
 ==========================
 
+Esa gran asignatura del DATSI que nos da pesadillas en binario, complemento A1 y A2 y sobre todo en ensamblador.
+
 ## Contenidos
 - [own_emu.c](#own_emuc)
 - [tester.ens](#testerens)
