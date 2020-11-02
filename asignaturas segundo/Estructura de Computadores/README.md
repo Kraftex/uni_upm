@@ -18,8 +18,8 @@ Donde en *subrutina* se especifica el nombre de la subrutina a testear, la gran 
 
 **Interpretación de los registros del 1 al 28**
 Después de la llamada a un test siempre se llama o se debería de llamar a la subrutina `Check` y procederá a escribir en todos los registros mencionados una serie de valores (1, A, F) para componer una palabra de 4 carateres de las siguientes: **PASS** y **FAIL**. Otra palabra que puede aparecer es **WTF** en relacion al pasarle a `TESTEAR` o `TESTWB` una etiqueta que no corresponda a una subrutina que disponga de test.
-**-- Ejemplo**:
->```
+**-- Ejemplo**: 
+```
  R01 = AAAAAA11 h R02 = 111AA111 h R03 = 11AAAA11 h R04 = 11AAAA11 h
  R05 = AA1111AA h R06 = 1AA11AA1 h R07 = AA1111AA h R08 = AA1111AA h
  R09 = AA1111AA h R10 = 1AA11AA1 h R11 = AA111111 h R12 = AA111111 h
