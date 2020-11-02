@@ -37,7 +37,7 @@ Después de la llamada a un test siempre se llama o se debería de llamar a la s
  R25 = AA111111 h R26 = AA1111AA h R27 = 11AAAA11 h R28 = 11AAAA11 h
  R29 = AAAAAAAA h R30 = 00020000 h R31 = 000004A8 h
 ```
-El test ha salido perfecto y usando A se escribe **PASS**.
+El test ha salido perfecto y usando A se escribe **PASS**(Pista: Ctrl+F AA).
 
 **Interpretación del resultado de r29**\
 Como un registro de 32b puede representarse usando 8 caracteres hexadecimales, es el motivo por el que se hacen solo 8 pruebas. La posición donde se encuentre el carácter indica el número interno de la prueba. El carácter en cuentión será siempre **A** cuando sea correcto pero cualquier otro carácter indicará que se produjo un error en alguna verificación de la prueba, normalmente se usará la **F**.\
