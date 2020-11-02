@@ -1,0 +1,1749 @@
+; --------------------------------------------->
+;   Autor: Julian C
+;   Version: 2.1
+; --------------------------------------------->
+; El tester funciona de esta manera, se llama en forma de subrutina
+; a un test (dentro de este se realizaran 8 pruebas
+; a la subrutina especifica). Y en r29 debería dejar
+; un valor que contenga varias F o A y pueden estar intercaladas.
+; Para que luego al llamar a Check lo compruebe.
+; Cuando Check lo revise, usará casi todos los registros [r1-r28]
+; para escribir una palabra de cuatro letras.
+; Macros usadas por el tester ----------------->
+; Marcos comunes para el codigo
+LEA:        MACRO   (reg, ETIQ)
+            or reg, r0, low(ETIQ)
+            or.u reg, reg, high(ETIQ)
+            ENDMACRO
+
+LOAD:       MACRO   (reg, ETIQ)
+            LEA(reg, ETIQ)
+            ld reg, reg, 0
+            ENDMACRO
+
+;INSECURE, modifica r28
+SWAP:       MACRO   (ra, rb)
+            or r28, ra, ra 
+            or ra, rb, rb                   
+            or rb, r28, r28
+            ENDMACRO
+
+PUSH:       MACRO   (reg)
+            subu r30, r30, 4
+            st reg, r30, r0
+            ENDMACRO
+
+POP:        MACRO   (reg)
+            ld reg, r30, r0
+            addu r30, r30, 4
+            ENDMACRO
+; Marcos especificos del test
+;Introduce en pila un dato de 32b(4B)
+;SECURE
+PUSH_INM:   MACRO   (INM)
+            subu r30, r30, 8        ; Un PUSH pero dejando hueco...
+            st r29, r30, 0
+            LEA(r29, INM)           ; Permitir inmediatos de 32bits
+            st r29, r30, 4          ; Guardar el INM en el hueco...
+            POP(r29)                ; Restaurar r29
+            ENDMACRO
+
+;Poner DATA en [r_dir++] -> MOVE.L #DATA,(r_dir)+ -> *(r_dir++) = DATA
+;SECURE
+PUT_INC:    MACRO   (r_dir, DATA)
+            PUSH(r29)
+            PUSH(r28)
+            LEA(r28, DATA)
+            addu r29, r28, r0
+            st r29, r_dir, 0
+            POP(r28)
+            POP(r29)
+            addu r_dir, r_dir, 4
+            ENDMACRO
+
+INITSTACK:  MACRO   (ETIQ)
+            LEA(r30, ETIQ)
+            ENDMACRO
+
+WTF:        MACRO   ( )
+            LEA(r01, 0xFF1111FF)    ; FF    FF
+            LEA(r05, 0xFF1111FF)    ; FF    FF 
+            LEA(r09, 0xFF1111FF)    ; FF    FF 
+            LEA(r13, 0xFF1111FF)    ; FF    FF 
+            LEA(r17, 0xFF1FF1FF)    ; FF FF FF 
+            LEA(r21, 0xFF1FF1FF)    ; FF FF FF 
+            LEA(r25, 0x1FF11FF1)    ;  FF  FF  
+            LEA(r02, 0xFFFFFFFF)    ;         FFFFFFFF
+            LEA(r06, 0x111FF111)    ;            FF   
+            LEA(r10, 0x111FF111)    ;            FF   
+            LEA(r14, 0x111FF111)    ;            FF   
+            LEA(r18, 0x111FF111)    ;            FF   
+            LEA(r22, 0x111FF111)    ;            FF   
+            LEA(r26, 0x111FF111)    ;            FF   
+            LEA(r03, 0xFFFFFFFF)    ;                 FFFFFFFF
+            LEA(r07, 0xFF111111)    ;                 FF     
+            LEA(r11, 0xFF111111)    ;                 FF     
+            LEA(r15, 0xFFFFFF11)    ;                 FFFFFF 
+            LEA(r19, 0xFF111111)    ;                 FF     
+            LEA(r23, 0xFF111111)    ;                 FF     
+            LEA(r27, 0xFF111111)    ;                 FF    
+            LEA(r04, 0x11111111)    ;
+            LEA(r08, 0x11111111)    ;
+            LEA(r12, 0x11111111)    ;
+            LEA(r16, 0x11111111)    ;
+            LEA(r20, 0x11111111)    ;
+            LEA(r24, 0x11111111)    ;
+            LEA(r28, 0x11111111)    ;
+            ENDMACRO
+
+FAIL:       MACRO   ( )
+            LEA(r01, 0xFFFFFFFF)    ; FFFFFFFF
+            LEA(r05, 0xFF111111)    ; FF       
+            LEA(r09, 0xFF111111)    ; FF       
+            LEA(r13, 0xFFFFFF11)    ; FFFFFF   
+            LEA(r17, 0xFF111111)    ; FF       
+            LEA(r21, 0xFF111111)    ; FF       
+            LEA(r25, 0xFF111111)    ; FF       
+            LEA(r02, 0x111FF111)    ;            FF   
+            LEA(r06, 0x1FF11FF1)    ;          FF  FF 
+            LEA(r10, 0x1FF11FF1)    ;          FF  FF 
+            LEA(r14, 0xFF1111FF)    ;         FF    FF
+            LEA(r18, 0xFFFFFFFF)    ;         FFFFFFFF
+            LEA(r22, 0xFF1111FF)    ;         FF    FF
+            LEA(r26, 0xFF1111FF)    ;         FF    FF
+            LEA(r03, 0x1FFFFFF1)    ;                  FFFFFF 
+            LEA(r07, 0x111FF111)    ;                    FF   
+            LEA(r11, 0x111FF111)    ;                    FF   
+            LEA(r15, 0x111FF111)    ;                    FF   
+            LEA(r19, 0x111FF111)    ;                    FF   
+            LEA(r23, 0x111FF111)    ;                    FF   
+            LEA(r27, 0x1FFFFFF1)    ;                  FFFFFF
+            LEA(r04, 0xFF111111)    ;                         FF      
+            LEA(r08, 0xFF111111)    ;                         FF      
+            LEA(r12, 0xFF111111)    ;                         FF      
+            LEA(r16, 0xFF111111)    ;                         FF      
+            LEA(r20, 0xFF111111)    ;                         FF      
+            LEA(r24, 0xFF111111)    ;                         FF      
+            LEA(r28, 0xFFFFFFFF)    ;                         FFFFFFFF
+            stop
+            ENDMACRO
+
+FAILWB:     MACRO   ( )
+            LEA(r01, 0xFFFFFFFF)    ; FFFFFFFF
+            LEA(r05, 0xFF111111)    ; FF       
+            LEA(r09, 0xFF111111)    ; FF       
+            LEA(r13, 0xFFFFFF11)    ; FFFFFF   
+            LEA(r17, 0xFF111111)    ; FF       
+            LEA(r21, 0xFF111111)    ; FF       
+            LEA(r25, 0xFF111111)    ; FF       
+            LEA(r02, 0x111FF111)    ;            FF   
+            LEA(r06, 0x1FF11FF1)    ;          FF  FF 
+            LEA(r10, 0x1FF11FF1)    ;          FF  FF 
+            LEA(r14, 0xFF1111FF)    ;         FF    FF
+            LEA(r18, 0xFFFFFFFF)    ;         FFFFFFFF
+            LEA(r22, 0xFF1111FF)    ;         FF    FF
+            LEA(r26, 0xFF1111FF)    ;         FF    FF
+            LEA(r03, 0x1FFFFFF1)    ;                  FFFFFF 
+            LEA(r07, 0x111FF111)    ;                    FF   
+            LEA(r11, 0x111FF111)    ;                    FF   
+            LEA(r15, 0x111FF111)    ;                    FF   
+            LEA(r19, 0x111FF111)    ;                    FF   
+            LEA(r23, 0x111FF111)    ;                    FF   
+            LEA(r27, 0x1FFFFFF1)    ;                  FFFFFF
+            LEA(r04, 0xFF111111)    ;                         FF      
+            LEA(r08, 0xFF111111)    ;                         FF      
+            LEA(r12, 0xFF111111)    ;                         FF      
+            LEA(r16, 0xFF111111)    ;                         FF      
+            LEA(r20, 0xFF111111)    ;                         FF      
+            LEA(r24, 0xFF111111)    ;                         FF      
+            LEA(r28, 0xFFFFFFFF)    ;                         FFFFFFFF
+            ENDMACRO
+
+PASS:       MACRO   ( )
+            LEA(r01, 0xAAAAAA11)    ; AAAAAA  
+            LEA(r05, 0xAA1111AA)    ; AA    AA
+            LEA(r09, 0xAA1111AA)    ; AA    AA
+            LEA(r13, 0xAAAAAA11)    ; AAAAAA  
+            LEA(r17, 0xAA111111)    ; AA      
+            LEA(r21, 0xAA111111)    ; AA      
+            LEA(r25, 0xAA111111)    ; AA    
+            LEA(r02, 0x111AA111)    ;            AA   
+            LEA(r06, 0x1AA11AA1)    ;          AA  AA 
+            LEA(r10, 0x1AA11AA1)    ;          AA  AA 
+            LEA(r14, 0xAA1111AA)    ;         AA    AA
+            LEA(r18, 0xAAAAAAAA)    ;         AAAAAAAA
+            LEA(r22, 0xAA1111AA)    ;         AA    AA
+            LEA(r26, 0xAA1111AA)    ;         AA    AA
+            LEA(r03, 0x11AAAA11)    ;                   AAAA  
+            LEA(r07, 0xAA1111AA)    ;                 AA    AA
+            LEA(r11, 0xAA111111)    ;                 AA      
+            LEA(r15, 0x11AAAA11)    ;                   AAAA  
+            LEA(r19, 0x111111AA)    ;                       AA
+            LEA(r23, 0xAA1111AA)    ;                 AA    AA
+            LEA(r27, 0x11AAAA11)    ;                   AAAA
+            LEA(r04, 0x11AAAA11)    ;                           AAAA  
+            LEA(r08, 0xAA1111AA)    ;                         AA    AA
+            LEA(r12, 0xAA111111)    ;                         AA      
+            LEA(r16, 0x11AAAA11)    ;                           AAAA  
+            LEA(r20, 0x111111AA)    ;                               AA
+            LEA(r24, 0xAA1111AA)    ;                         AA    AA
+            LEA(r28, 0x11AAAA11)    ;                           AAAA
+            ENDMACRO
+
+PUT_GEN:    MACRO   (r_gen, DATA)   ; For GWT
+            mak r_gen, r_gen, 0<4>  ; 0x0000000F -> 0x000000F0
+            addu r_gen, r_gen, DATA
+            ENDMACRO
+
+PUT_A:      MACRO   (r_gen)
+            PUT_GEN(r_gen, 0xA)
+            ENDMACRO
+
+PUT_F:      MACRO   (r_gen)
+            PUT_GEN(r_gen, 0xF)
+            ENDMACRO
+
+;r_cmp: comprobacion, r_gwt: donde está guardado el Get_wellT
+PUT_F_OR_A: MACRO   (r_cmp, r_gwt)
+            mak r_gwt, r_gwt, 0<4>  ; 0x0000000F -> 0x000000F0
+            bb0 eq, r_cmp, 3
+            ;PUT_A, good
+            addu r_gwt, r_gwt, 0xA
+            br 2
+            ;PUT_F, bad
+            addu r_gwt, r_gwt, 0xF
+            ENDMACRO
+
+;subr: la direccion donde está la subrutina a testear
+;BLOCK
+TESTEAR:    MACRO   (subr)          ; subr, deberá ser el identificador de la subrutina a testear
+            LEA(r28, subr)
+            LEA(r29, FiltRec)
+            cmp r27, r28, r29
+            bb0 eq, r27, 4
+            bsr Test_8
+            bsr Check
+TFiltRec:   stop
+            LEA(r29, Filtro)
+            cmp r27, r28, r29
+            bb0 eq, r27, 4
+            bsr Test_7
+            bsr Check
+TFiltro:    stop
+            LEA(r29, FilPixel)
+            cmp r27, r28, r29
+            bb0 eq, r27, 4
+            bsr Test_6
+            bsr Check
+TFilPixel:  stop
+            LEA(r29, SubMatriz)
+            cmp r27, r28, r29
+            bb0 eq, r27, 4
+            bsr Test_5
+            bsr Check
+TSubMatriz: stop
+            LEA(r29, ValorPixel)
+            cmp r27, r28, r29
+            bb0 eq, r27, 4
+            bsr Test_4
+            bsr Check
+TValorPixel:stop
+            LEA(r29, Comp)
+            cmp r27, r28, r29
+            bb0 eq, r27, 4
+            bsr Test_3
+            bsr Check
+TComp:      stop
+            LEA(r29, Sqrt)
+            cmp r27, r28, r29
+            bb0 eq, r27, 4
+            bsr Test_2
+            bsr Check
+TSqrt:      stop
+            LEA(r29, nFiltrados)
+            cmp r27, r28, r29
+            bb0 eq, r27, 4
+            bsr Test_1
+            bsr Check
+TnFiltrados:stop
+            WTF( )                  ; WTF
+WAYD:       stop
+            ENDMACRO
+
+;subr: la direccion donde está la subrutina a testear
+;NOT BLOCK
+TESTWB:     MACRO   (subr)          ; subr, deberá ser el identificador de la subrutina a testear
+            LEA(r28, subr)
+            LEA(r29, FiltRec)
+            cmp r27, r28, r29
+            bb0 eq, r27, 4
+            bsr Test_8
+            bsr CheckWB
+            br testwbf
+tFiltRec:   LEA(r29, Filtro)
+            cmp r27, r28, r29
+            bb0 eq, r27, 4
+            bsr Test_7
+            bsr CheckWB
+            br testwbf
+tFiltro:    LEA(r29, FilPixel)
+            cmp r27, r28, r29
+            bb0 eq, r27, 4
+            bsr Test_6
+            bsr CheckWB
+            br testwbf
+tFilPixel:  LEA(r29, SubMatriz)
+            cmp r27, r28, r29
+            bb0 eq, r27, 4
+            bsr Test_5
+            bsr CheckWB
+            br testwbf
+tSubMatriz: LEA(r29, ValorPixel)
+            cmp r27, r28, r29
+            bb0 eq, r27, 4
+            bsr Test_4
+            bsr CheckWB
+            br testwbf
+tValorPixel:LEA(r29, Comp)
+            cmp r27, r28, r29
+            bb0 eq, r27, 4
+            bsr Test_3
+            bsr CheckWB
+            br testwbf
+tComp:      LEA(r29, Sqrt)
+            cmp r27, r28, r29
+            bb0 eq, r27, 4
+            bsr Test_2
+            bsr CheckWB
+            br testwbf
+tSqrt:      LEA(r29, nFiltrados)
+            cmp r27, r28, r29
+            bb0 eq, r27, 4
+            bsr Test_1
+            bsr CheckWB
+            br testwbf
+tnFiltrados:WTF( )                  ; WTF
+wayd:       stop
+testwbf:    and r0, r0, r0          ; Intruccion relleno ya que 'no existe' nop...
+            ENDMACRO
+
+        ;org 0
+nF:     res 4; nF absoluto.
+; Subrutinas auxiliares para el tester.
+Check:      PUSH(r1)                ; Check r29
+            POP(r31)
+            LEA(r28, 0xAAAAAAAA)
+            cmp r27, r29, r28
+            bb1 ne, r27, FAIL       ; Salto a FAIL( )
+            PASS( )
+            br FinCheck             ; Saltarse FAIL( )
+FAIL:       FAIL( )
+FinCheck:   jmp (r31)
+
+CheckWB:    PUSH(r1)                ; Check r29
+            POP(r31)
+            LEA(r28, 0xAAAAAAAA)
+            cmp r27, r29, r28
+            bb1 ne, r27, FAILWB     ; Salto a FAILWB( )
+            PASS( )
+            br FinCheckWB           ; Saltarse FAILWB( )
+FAILWB:     FAILWB( )
+FinCheckWB: jmp (r31)
+
+;CmpMemBlk(nBy, Blk0, Blk1): -> Compara dos bloques de memoria dada su longitud en bytes
+CmpMemBlk:  ld r27, r30, 0          ; r27 <- N bytes a comparar
+            ld r26, r30, 4          ; r26 <- dir(Blk0)
+            ld r25, r30, 8          ; r25 <- dir(Blk1)
+            xor r29, r29, r29       ; r29 <- 0
+            cmp r22, r27, 0         ; r27 == 0?
+            bb1 eq, r22, FinBclCmb
+BclCmb:     sub r27, r27, 1         ; r27 <- r27 - 1
+            ld.bu r24, r26, r27     ; r24 <- Cargar el nº byte
+            ld.bu r23, r25, r27     ; r23 <- Cargar el nº byte
+            subu r29, r24, r23      ; r29 <- r24 - r23
+            cmp r22, r29, 0         ; r29 == 0?
+            bb0 eq, r22, FinBclCmb
+            cmp r22, r27, 0         ; r27 == 0?
+            bb0 eq, r22, BclCmb
+FinBclCmb:  jmp (r1)
+
+;DifMemBlk(nBy, Blk0, Blk1): -> Hace la diferencia de dos bloques de memoria, siempre dando numeros positivos
+DifMemBlk:  ld r27, r30, 0          ; r27 <- N bytes a comparar
+            ld r26, r30, 4          ; r26 <- dir(Blk0)
+            ld r25, r30, 8          ; r25 <- dir(Blk1)
+            xor r29, r29, r29       ; r29 <- 0
+            cmp r22, r27, 0         ; r27 == 0?
+            bb1 eq, r22, FinBclDmb
+BclDmb:     sub r27, r27, 1         ; r27 <- r27 - 1
+            ld.bu r24, r26, r27     ; r24 <- Cargar el nº byte
+            ld.bu r23, r25, r27     ; r23 <- Cargar el nº byte
+            cmp r22, r24, r23       ; r24 < r23?
+            bb1 lt, r22, RstDmb
+            addu r29, r29, r24
+            subu r29, r29, r23
+            br CmpDmb
+RstDmb:     addu r29, r29, r23
+            subu r29, r29, r24      ; r29 <- r23 - r24
+CmpDmb:     cmp r22, r27, 0         ; r27 == 0?
+            bb0 eq, r22, BclDmb
+FinBclDmb:  jmp (r1)
+; Hasta aquí.
+
+main:       INITSTACK(0x00020000); Inicializar la Pila
+    T0:     bsr Test_1              ; Test para nFiltrados
+            bsr Check
+    T1:     bsr Test_2              ; Test para Sqrt
+            bsr Check
+    T2:     bsr Test_3              ; Test para Comp
+            bsr Check
+    T3:     bsr Test_4              ; Test para ValorPixel
+            bsr Check
+    T4:     bsr Test_5              ; Test para SubMatriz
+            bsr Check
+    T5:     bsr Test_6              ; Test para FilPixel
+            bsr Check
+    T6:     bsr Test_7              ; Test para Filtro
+            bsr Check
+    T7:     bsr Test_8              ; Test para FiltRec
+            bsr Check
+FIN_TESTS:  stop
+
+; Todas las subrutinas deben de ser escritas para que se puedan testear, por favor
+nFiltrados: ; Aquí el código a testear
+            jmp (r1)
+Sqrt:       ; Aquí el código a testear
+            jmp (r1)
+Comp:       ; Aquí el código a testear
+            jmp (r1)
+ValorPixel: ; Aquí el código a testear
+            jmp (r1)
+SubMatriz:  ; Aquí el código a testear
+            jmp (r1)
+FilPixel:   ; Aquí el código a testear
+            jmp (r1)
+Filtro:     ; Aquí el código a testear
+            jmp (r1)
+FiltRec:    ; Aquí el código a testear
+            jmp (r1)
+
+;Datos comunes para todos los tests
+;Data_num puede contener numericos como direcciones de memoria
+Data_numA:      res 32
+Data_numB:      res 32
+Data_numC:      res 32
+Data_numD:      res 32
+Data_numE:      res 32
+Data_numF:      res 32
+Data_numG:      res 32
+Data_numH:      res 32
+;Data_pic puede contener 'imagenes', filtros y subimagenes...
+Data_picA:      res 80              ; Reservar tanta memoria como la imagen mas grande (6x12)
+Data_picB:      res 80
+
+Data_picC:      res 80
+Data_picD:      res 80
+
+Data_picE:      res 80
+Data_picF:      res 80
+
+Data_picG:      res 80
+Data_picH:      res 80
+
+Data_picI:      res 80
+Data_picJ:      res 80
+
+Data_picK:      res 80
+Data_picL:      res 80
+
+Data_picM:      res 80
+Data_picN:      res 80
+
+Data_picO:      res 80
+Data_picP:      res 80
+
+Data_picQ:      res 80
+Data_picR:      res 80
+Data_picS:      res 80
+Data_picT:      res 80
+Data_picU:      res 80
+Data_picV:      res 80
+Data_picW:      res 80
+Data_picX:      res 80
+Data_picZ:      res 80
+
+; Test para la subrutina nFiltrados
+Get_wellT1:     res 4
+Test_1:     PUSH(r1)
+            bsr ConfigT1            ; Configurar los datos de entrada y los resultados
+            PUSH(r31)
+            or r31, r30, r0
+            subu r30, r30, 12       ; Espacio para tres variables: r4, r5, y r11
+            xor r4, r4, r4          ; Usar como un iterador
+            LEA(r5, Data_numC)      ; r5 <- dir(Data_test0)
+            LEA(r10, Get_wellT1)
+            ld r11, r10, 0          ; Cargar Get_wellT0
+bcl_1:      ld r6, r5, r4           ; r6 <- val(dir(r5 + r4))
+            st r5, r30, 8           ; Importante r5, dir(Data_test1)
+            st r4, r30, 4           ; Importante r4, iterador
+            st r11, r30, 0          ; Importante r11, val(Get_wellT1)
+            PUSH(r6)                ; Guardar en pila para usarlo como parametro dentro de nFiltrados
+            LEA(r7, nF)
+            LEA(r6, Data_numA)      ; Cargar el 'nF' correspondiente
+            ld r6, r6, r4           ; Cargar dato con desplazamiento
+            st r6, r7, 0            ; Guardar el 'nF' correspondiente
+bsr_1:      bsr nFiltrados          ;
+            addu r30, r30, 4        ; Limpiar paramtros de pila
+                                    ; Dos comprobaciones, que 'nF' sea 'nF_A_test0'
+                                    ; y r29 sea 'Data_resT0'
+            ld r11, r30, 0          ; Recuperamos r11, val(Get_wellT1)
+            ld r4, r30, 4           ; Recuperamos r4, iterador
+            ld r5, r30, 8           ; Recuperamos r5, dir(Data_test1)
+            LOAD(r13, nF)           ; Cargar el valor de 'nF'
+            LEA(r6, Data_numB)
+            ld r6, r6, r4           ; Cargar el valor que se espera en 'nF'
+            LEA(r8, Data_numD)
+            ld r8, r8, r4           ; Cargar el valor que se espera en r29
+actgw_1:    cmp r12, r6, r13        ; Comprobar si 'nF_After' == 'nF'
+            cmp r9, r29, r8         ; Comprobar si r29 == 'Data_resT1'
+            bb1 eq, r12, 2          ; Saltar dos intrucciones adelante, si 'nF_After' == 'nF'
+            br 2
+            bb1 eq, r09, 4          ; Saltar dos intrucciones adelante, si r29 == 'Data_resT1'
+            PUT_F(r11)
+            br 3
+            PUT_A(r11)
+            add r4, r4, 4           ; r4 <- r4 + 4, shitty comment
+            cmp r7, r4, 32          ; Comprobar que r4 != 32
+            bb1 ne, r7, bcl_1
+            LEA(r10, Get_wellT1)
+            st r11, r10, 0          ; Guardar Get_wellT1
+            add r29, r0, r11        ; Return -> r29, resultados del test
+            or r30, r31, r0         ; Eliminar variables locales
+            POP(r31)
+            POP(r1)
+            jmp (r1)
+
+; Test para la subrutina Sqrt
+Get_wellT2:     res 4
+Test_2:     PUSH(r1)
+            bsr ConfigT2            ; Configurar los datos de entrada y los resultados
+            PUSH(r31)
+            or r31, r30, r0
+            subu r30, r30, 12       ; Espacio para tres variables: r4, r5, y r11
+            xor r4, r4, r4          ; Usar como un iterador
+            LEA(r5, Data_numA)      ; r5 <- dir(Data_test2)
+            LEA(r10, Get_wellT2)
+            ld r11, r10, 0          ; Cargar Get_wellT2
+bcl_2:      ld r6, r5, r4           ; r6 <- val(dir(r5 + r4))
+            st r5, r30, 8           ; Importante r5, dir(Data_test2)
+            st r4, r30, 4           ; Importante r4, iterador
+            st r11, r30, 0          ; Importante r11, val(Get_wellT2)
+            PUSH(r6)                ; Guardar en pila para usarlo como parametro dentro de Sqrt
+bsr_2:      bsr Sqrt                ; Llamar a la subrutina
+            addu r30, r30, 4        ; Limpiar paramtros de pila
+            ld r11, r30, 0          ; Recuperamos r11, val(Get_wellT2)
+            ld r4, r30, 4           ; Recuperamos r4, iterador
+            ld r5, r30, 8           ; Recuperamos r5, dir(Data_test2)
+            LEA(r8, Data_numB)
+            ld r8, r8, r4           ; Cargar el valor que se espera
+actgw_2:    cmp r9, r29, r8
+            PUT_F_OR_A(r9, r11)
+            add r4, r4, 4           ; r4 <- r4 + 4, shitty comment
+            cmp r7, r4, 32
+            bb1 ne, r7, bcl_2
+            LEA(r10, Get_wellT2)
+            st r11, r10, 0          ; Guardar Get_wellT2
+            add r29, r0, r11        ; Return -> r29, resultados del test
+            or r30, r31, r0         ; Eliminar variables locales
+            POP(r31)
+            POP(r1)
+            jmp (r1)
+
+; Test para la subrutina Comp
+Get_wellT3:     res 4
+Test_3:     PUSH(r1)
+            bsr ConfigT3            ; Configurar los datos de entrada y los resultados
+            PUSH(r31)
+            or r31, r30, r0
+            subu r30, r30, 16       ; Espacio para tres variables: r3, r4, r5, y r11
+            xor r4, r4, r4          ; Usar como un iterador
+            LEA(r3, Data_numA)      ; r3 <- dir(Data_test3a)
+            LEA(r5, Data_numB)      ; r5 <- dir(Data_test3b)
+            LEA(r10, Get_wellT3)
+            ld r11, r10, 0          ; Cargar Get_wellT3
+bcl_3:      ld r6, r3, r4           ; r6 <- val(dir(r3 + r4))
+            ld r7, r5, r4           ; r7 <- val(dir(r5 + r4))
+            st r5, r30, 12          ; Importante r5, dir(Data_test3b)
+            st r3, r30, 8           ; Importante r3, dir(Data_test3a)
+            st r4, r30, 4           ; Importante r4, iterador
+            st r11, r30, 0          ; Importante r11, val(Get_wellT3)
+            PUSH(r7)                ; Guardar en pila para usarlo como parametro dentro de Comp
+            PUSH(r6)
+bsr_3:      bsr Comp                ; Llamar a la subrutina
+            addu r30, r30, 8        ; Limpiar parametros de pila
+            ld r11, r30, 0          ; Recuperamos r11, val(Get_wellT3)
+            ld r4, r30, 4           ; Recuperamos r4, iterador
+            ld r3, r30, 8           ; Recuperamos r5, dir(Data_test3a)
+            ld r5, r30, 12          ; Recuperamos r5, dir(Data_test3b)
+            LEA(r8, Data_numC)
+            ld r8, r8, r4           ; Cargar el valor que se espera
+actgw_3:    cmp r9, r29, r8
+            PUT_F_OR_A(r9, r11)
+            add r4, r4, 4           ; r4 <- r4 + 4, shitty comment
+            cmp r7, r4, 32
+            bb1 ne, r7, bcl_3
+            LEA(r10, Get_wellT3)
+            st r11, r10, 0          ; Guardar Get_wellT3
+            add r29, r0, r11        ; Return -> r29, resultados del test
+            or r30, r31, r0         ; Eliminar variables locales
+            POP(r31)
+            POP(r1)
+            jmp (r1)
+
+; Test para la subrutina ValorPixel
+Get_wellT4:     res 4
+Test_4:     PUSH(r1)
+            bsr ConfigT4            ; Configurar los datos de entrada y los resultados
+            PUSH(r31)
+            or r31, r30, r0
+            subu r30, r30, 16       ; Espacio para tres variables: r3, r4, r5, y r11
+            xor r4, r4, r4          ; Usar como un iterador
+            LEA(r3, Data_numA)      ; r3 <- dir(Data_test4a)
+            LEA(r5, Data_numB)      ; r5 <- dir(Data_test4b)
+            LEA(r10, Get_wellT4)
+            ld r11, r10, 0          ; Cargar Get_wellT4
+bcl_4:      ld r6, r3, 0            ; r6 <- SubimgT4
+            ld r7, r5, r4           ; r7 <- val(dir(r5 + r4))
+            st r5, r30, 12          ; Importante r5, dir(Data_test4b)
+            st r3, r30, 8           ; Importante r3, dir(Data_test4a)
+            st r4, r30, 4           ; Importante r4, iterador
+            st r11, r30, 0          ; Importante r11, val(Get_wellT4)
+            PUSH(r7)                ; Guardar en pila para usarlo como parametro dentro de ValorPixel
+            PUSH(r6)
+bsr_4:      bsr ValorPixel          ; Llamar a la subrutina
+            addu r30, r30, 8        ; Limpiar parametros de pila
+            ld r11, r30, 0          ; Recuperamos r11, val(Get_wellT4)
+            ld r4, r30, 4           ; Recuperamos r4, iterador
+            ld r3, r30, 8           ; Recuperamos r3, dir(Data_test4a)
+            ld r5, r30, 12          ; Recuperamos r5, dir(Data_test4b)
+            LEA(r8, Data_numC)
+            ld r8, r8, r4           ; Cargar el valor que se espera
+actgw_4:    cmp r9, r29, r8
+            PUT_F_OR_A(r9, r11)
+            add r4, r4, 4           ; r4 <- r4 + 4
+            cmp r7, r4, 32
+            bb1 ne, r7, bcl_4
+            LEA(r10, Get_wellT4)
+            st r11, r10, 0          ; Guardar Get_wellT4
+            add r29, r0, r11        ; Return -> r29, resultados del test
+            or r30, r31, r0         ; Eliminar variables locales
+            POP(r31)
+            POP(r1)
+            jmp (r1)
+
+; Test para la subrutina SubMatriz
+Get_wellT5:     res 4
+Test_5:     PUSH(r1)
+            bsr ConfigT5            ; Configurar los datos de entrada y los resultados
+            PUSH(r31)
+            or r31, r30, r0
+            subu r30, r30, 24       ; Espacio para seis variables: r3, r4, r5, r12, r13 y r11
+            xor r4, r4, r4          ; Usar como un iterador
+            LEA(r3, Data_numA)      ; r3 <- dir(Data_test5a)
+            LEA(r5, Data_numB)      ; r5 <- dir(Data_test5b)
+            LEA(r12, Data_numC)     ; r12 <- dir(Data_test5c)
+            LEA(r13, Data_numD)     ; r13 <- dir(Data_test5d)
+            LEA(r10, Get_wellT5)
+            ld r11, r10, 0          ; Cargar Get_wellT4
+bcl_5:      ld r6, r3, 0            ; r6 <- ImgT4
+            ld r7, r5, r4           ; r7 <- val(dir(r5 + r4))
+            ld r14, r12, r4         ; r14 <- val(dir(r12 + r4))
+            ld r15, r13, r4         ; r15 <- val(dir(r13 + r4))
+            st r13, r30, 20         ; Importante r13, dir(Data_test5d)
+            st r12, r30, 16         ; Importante r12, dir(Data_test5c)
+            st r5, r30, 12          ; Importante r5, dir(Data_test5b)
+            st r3, r30, 8           ; Importante r3, dir(Data_test5a)
+            st r4, r30, 4           ; Importante r4, iterador
+            st r11, r30, 0          ; Importante r11, val(Get_wellT5)
+            PUSH(r15)               ; Guardar en pila para usarlo como parametro dentro de SubMatriz
+            PUSH(r14)
+            PUSH(r7)
+            PUSH(r6)
+bsr_5:      bsr SubMatriz           ; Llamar a la subrutina
+            addu r30, r30, 16       ; Limpiar parametros de pila
+            ld r11, r30, 0          ; Recuperamos r11, val(Get_wellT5)
+            ld r4, r30, 4           ; Recuperamos r4, iterador
+            ld r3, r30, 8           ; Recuperamos r3, dir(Data_test5a)
+            ld r5, r30, 12          ; Recuperamos r5, dir(Data_test5b)
+            ld r12, r30, 16         ; Recuperamos r12, dir(Data_test5c)
+            ld r13, r30, 20         ; Recuperamos r13, dir(Data_test5d)
+            LEA(r8, Data_numE)
+            ld r8, r8, r4           ; Cargar el valor que se espera, es decir, la direccion de la subimg
+actgw_5:    ;add r9, r0, 9
+            ld r10, r05, r4
+            PUSH(r10)               ; Subimg
+            PUSH(r08)               ; Subimg
+            PUSH_INM(9)             ; N pixs a comprobar
+            bsr CmpMemBlk
+            addu r30, r30, 12
+            cmp r9, r29, r0
+            PUT_F_OR_A(r9, r11)
+            add r4, r4, 4           ; r4 <- r4 + 4, shitty comment
+            cmp r7, r4, 32
+            bb1 ne, r7, bcl_5
+            LEA(r10, Get_wellT5)    ; Cargamos de nuevo dir(Get_wellT5)
+            st r11, r10, 0          ; Guardar Get_wellT5
+            add r29, r0, r11        ; Return -> r29, resultados del test
+            or r30, r31, r0         ; Eliminar variables locales
+            POP(r31)
+            POP(r1)
+            jmp (r1)
+
+; Test para la subrutina FilPixel
+Get_wellT6:     res 4
+Test_6:     PUSH(r1)
+            bsr ConfigT6            ; Configurar los datos de entrada y los resultados
+            PUSH(r31)
+            or r31, r30, r0
+            subu r30, r30, 24       ; Espacio para seis variables: r3, r4, r5, r12, r13 y r11
+            xor r4, r4, r4          ; Usar como un iterador
+            LEA(r3, Data_numA)      ; r3 <- dir(Data_test6a)
+            LEA(r5, Data_numB)      ; r5 <- dir(Data_test6b)
+            LEA(r12, Data_numC)     ; r12 <- dir(Data_test6c)
+            LEA(r13, Data_numD)     ; r13 <- dir(Data_test6d)
+            LEA(r10, Get_wellT6)
+            ld r11, r10, 0          ; Cargar Get_wellT6
+bcl_6:      ld r6, r3, 0            ; r6 <- ImgT6
+            ld r7, r5, r4           ; r7 <- val(dir(r5 + r4))
+            ld r14, r12, r4         ; r14 <- val(dir(r12 + r4))
+            ld r15, r13, 0          ; r15 <- Filt_T6
+            st r13, r30, 20         ; Importante r13, dir(Data_test6d)
+            st r12, r30, 16         ; Importante r12, dir(Data_test6c)
+            st r5, r30, 12          ; Importante r5, dir(Data_test6b)
+            st r3, r30, 8           ; Importante r3, dir(Data_test6a)
+            st r4, r30, 4           ; Importante r4, iterador
+            st r11, r30, 0          ; Importante r11, val(Get_wellT6)
+            PUSH(r15)               ; Pasar los parametros a la subrutina FilPixel
+            PUSH(r14)
+            PUSH(r7)
+            PUSH(r6)
+bsr_6:      bsr FilPixel            ; Llamar a la subrutina
+            addu r30, r30, 16       ; Limpiar parametros de pila
+            ld r11, r30, 0          ; Recuperamos r11, val(Get_wellT6)
+            ld r4, r30, 4           ; Recuperamos r4, iterador
+            ld r3, r30, 8           ; Recuperamos r3, dir(Data_test6a)
+            ld r5, r30, 12          ; Recuperamos r5, dir(Data_test6b)
+            ld r12, r30, 16         ; Recuperamos r12, dir(Data_test6c)
+            ld r13, r30, 20         ; Recuperamos r13, dir(Data_test6d)
+            LEA(r8, Data_numE)
+            ld r8, r8, r4           ; Cargar el valor que se espera
+actgw_6:    cmp r9, r29, r8
+            PUT_F_OR_A(r9, r11)
+            add r4, r4, 4           ; r4 <- r4 + 4, shitty comment
+            cmp r7, r4, 32
+            bb1 ne, r7, bcl_6       ; Seguir con las pruebas del Test_6
+            LEA(r10, Get_wellT6)    ; Cargamos de nuevo dir(Get_wellT6)
+            st r11, r10, 0          ; Guardar Get_wellT6
+            add r29, r0, r11        ; Return -> r29, resultados del test
+            or r30, r31, r0         ; Eliminar variables locales
+            POP(r31)
+            POP(r1)
+            jmp (r1)
+
+; Test para la subrutina Filtro
+Get_wellT7:     res 4
+Test_7:     PUSH(r1)
+            bsr ConfigT7            ; Configurar los datos de entrada y los resultados
+            PUSH(r31)
+            or r31, r30, r0
+            subu r30, r30, 20       ; Espacio para seis variables: r3, r4, r5, r12 y r11
+            xor r4, r4, r4          ; Usar como un iterador
+            LEA(r3, Data_numA)      ; r3 <- dir(Data_test7a)
+            LEA(r5, Data_numB)      ; r5 <- dir(Data_test7b)
+            LEA(r12, Data_numC)     ; r12 <- dir(Data_test7c)
+            LEA(r10, Get_wellT7)
+            ld r11, r10, 0          ; Cargar Get_wellT7
+bcl_7:      ld r6, r3, r4           ; r6 <- val(dir(r6 + r4))
+            ld r7, r5, r4           ; r7 <- val(dir(r5 + r4))
+            ld r14, r12, 0          ; r14 <- val(dir(r12))
+            st r12, r30, 16         ; Importante r12, dir(Data_test7c)
+            st r5, r30, 12          ; Importante r5, dir(Data_test7b)
+            st r3, r30, 8           ; Importante r3, dir(Data_test7a)
+            st r4, r30, 4           ; Importante r4, iterador
+            st r11, r30, 0          ; Importante r11, val(Get_wellT7)
+            PUSH(r14)               ; Guardar en pila para usarlo como parametro dentro de Filtro
+            PUSH(r7)
+            PUSH(r6)
+bsr_7:      bsr Filtro              ; Llamar a la subrutina
+            addu r30, r30, 12       ; Limpiar parametros de pila
+            ld r11, r30, 0          ; Recuperamos r11, val(Get_wellT7) NO NECESARIO
+            ld r4, r30, 4           ; Recuperamos r4, iterador
+            ld r3, r30, 8           ; Recuperamos r3, dir(Data_test7a)
+            ld r5, r30, 12          ; Recuperamos r5, dir(Data_test7b)
+            ld r6, r3, r4           ; r6 <- val(dir(r3 + r4))
+            ld r7, r5, r4           ; r7 <- val(dir(r5 + r4))
+actgw_7:    PUSH(r06)               ; Img_1
+            PUSH(r07)               ; Img_2
+            PUSH_INM(80)
+            bsr DifMemBlk
+            addu r30, r30, 12
+            ld r11, r30, 0          ; Recuperamos r11, val(Get_wellT6)
+            ld r4, r30, 4           ; Recuperamos r4, iterador
+            ld r3, r30, 8           ; Recuperamos r3, dir(Data_test6a)
+            ld r5, r30, 12          ; Recuperamos r5, dir(Data_test6b)
+            ld r12, r30, 16         ; Recuperamos r12, dir(Data_test6c)
+            cmp r9, r29, 16         ; La diferencia entre Img_1 e Img_2 debe ser 16 
+            PUT_F_OR_A(r9, r11)
+            add r4, r4, 4           ; r4 <- r4 + 4
+            cmp r7, r4, 32
+            bb1 ne, r7, bcl_7
+            LEA(r10, Get_wellT7)    ; Cargamos de nuevo dir(Get_wellT6)
+            st r11, r10, 0          ; Guardar Get_wellT6
+            add r29, r0, r11        ; Return -> r29, resultados del test
+            or r30, r31, r0         ; Eliminar variables locales
+            POP(r31)
+            POP(r1)
+            jmp (r1)
+
+; Test para la subrutina FiltRec
+Get_wellT8:     res 4
+Test_8:     PUSH(r1)
+            bsr ConfigT8            ; Configurar los datos de entrada y los resultados
+            PUSH(r31)
+            or r31, r30, r0
+            subu r30, r30, 28       ; Espacio para seis variables: r3, r4, r5, r12, r13 y r11
+            xor r4, r4, r4          ; Usar como un iterador
+            LEA(r3, Data_numA)      ; r3 <- dir(Data_test8a)
+            LEA(r5, Data_numB)      ; r5 <- dir(Data_test8b)
+            LEA(r12, Data_numC)     ; r12 <- dir(Data_test8c)
+            LEA(r13, Data_numD)     ; r13 <- dir(Data_test8d)
+            LEA(r17, Data_numE)     ; r17 <- dir(Data_test8e)
+            LEA(r10, Get_wellT8)
+            ld r11, r10, 0          ; Cargar Get_wellT8
+bcl_8:      ld r16, r17, r4         ; r16 <- val(dir(r17 + r4))
+            ld r6, r3, r4           ; r6 <- val(dir(r3 + r4))
+            ld r7, r5, r4           ; r7 <- val(dir(r5 + r4))
+            ld r14, r12, r4         ; r14 <- val(dir(r12 + r4))
+            ld r15, r13, r4         ; r15 <- val(dir(r13 + r4))
+            st r17, r30, 24         ; Importante r17, dir(Data_test8e)
+            st r13, r30, 20         ; Importante r13, dir(Data_test8d)
+            st r12, r30, 16         ; Importante r12, dir(Data_test8c)
+            st r5, r30, 12          ; Importante r5, dir(Data_test8b)
+            st r3, r30, 8           ; Importante r3, dir(Data_test8a)
+            st r4, r30, 4           ; Importante r4, iterador
+            st r11, r30, 0          ; Importante r11, val(Get_wellT8)
+            ; Modificar nF
+            LEA(r3, nF)
+            st r16, r3, 0
+            ; nF esta modificado
+            PUSH(r15)               ; Guardar en pila para usarlo como parametro dentro de FiltRec
+            PUSH(r14)
+            PUSH(r7)
+            PUSH(r6)
+bsr_8:      bsr FiltRec             ; Llamar a la subrutina
+            addu r30, r30, 16       ; Limpiar parametros de pila
+            ld r11, r30, 0          ; Recuperamos r11, val(Get_wellT8)
+            ld r4, r30, 4           ; Recuperamos r4, iterador
+            ld r3, r30, 8           ; Recuperamos r3, dir(Data_test8a)
+            ld r5, r30, 12          ; Recuperamos r5, dir(Data_test8b)
+            ld r12, r30, 16         ; Recuperamos r12, dir(Data_test8c)
+            ld r13, r30, 20         ; Recuperamos r13, dir(Data_test8d)
+            ld r17, r30, 24         ; Recuperamos r17, dir(Data_test8e)
+            ; Comprobar nF, ImgOut y r29, proximamente
+            LEA(r8, Data_numF)
+            ld r8, r8, r4           ; Cargar el valor que se espera (Data_resT8a)
+actgw_8:    cmp r9, r29, r8
+            PUT_F_OR_A(r9, r11)     ; *
+            add r4, r4, 4           ; r4 <- r4 + 4, shitty comment
+            cmp r7, r4, 32
+            bb1 ne, r7, bcl_8       ; Seguir el bucle
+            LEA(r10, Get_wellT8)    ; Cargamos de nuevo dir(Get_wellT8)
+            st r11, r10, 0          ; Guardar Get_wellT7
+            add r29, r0, r11        ; Return -> r29, resultados del test
+            or r30, r31, r0         ; Eliminar variables locales
+            POP(r31)
+            POP(r1)
+            jmp (r1)
+
+ConfigT1:   LEA(r2, Data_numA)      ; nF_Before
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 5)
+            PUT_INC(r2, 38)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, -6)
+            PUT_INC(r2, 5)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, -5)
+            LEA(r2, Data_numB)      ; nF_After
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 48)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 37)
+            LEA(r2, Data_numC)      ; Data_test1
+            PUT_INC(r2, 0)
+            PUT_INC(r2, -1)
+            PUT_INC(r2, 48)
+            PUT_INC(r2, -1)
+            PUT_INC(r2, -1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, -1)
+            PUT_INC(r2, 37)
+            LEA(r2, Data_numD)      ; Data_resT1 -> r29
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 48)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 37)
+            jmp (r1)
+
+ConfigT2:   LEA(r2, Data_numA)      ; Data_test2
+            PUT_INC(r2, 10)
+            PUT_INC(r2, 64)
+            PUT_INC(r2, 48)
+            PUT_INC(r2, 1022437)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 2)
+            PUT_INC(r2, 37)
+            LEA(r2, Data_numB)      ; Data_resT2 -> r29
+            PUT_INC(r2, 3)
+            PUT_INC(r2, 8)
+            PUT_INC(r2, 6)
+            PUT_INC(r2, 1011)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 6)
+            jmp (r1)
+
+ConfigT3:   LEA(r2, Data_numA)      ; Data_test3a
+            PUT_INC(r2, Data_picA)
+            PUT_INC(r2, Data_picC)
+            PUT_INC(r2, Data_picE)
+            PUT_INC(r2, Data_picG)
+            PUT_INC(r2, Data_picI)
+            PUT_INC(r2, Data_picK)
+            PUT_INC(r2, Data_picM)
+            PUT_INC(r2, Data_picO)
+            LEA(r2, Data_numB)      ; Data_test3b
+            PUT_INC(r2, Data_picB)
+            PUT_INC(r2, Data_picD)
+            PUT_INC(r2, Data_picF)
+            PUT_INC(r2, Data_picH)
+            PUT_INC(r2, Data_picJ)
+            PUT_INC(r2, Data_picL)
+            PUT_INC(r2, Data_picN)
+            PUT_INC(r2, Data_picP)
+            LEA(r2, Data_numC)      ; Data_resT3
+            PUT_INC(r2, 33)     ; 0x21
+            PUT_INC(r2, 2)      ; 0x2
+            PUT_INC(r2, 0)      ; 0x0
+            PUT_INC(r2, 0)      ; 0x0
+            PUT_INC(r2, 9)      ; 0x9
+            PUT_INC(r2, 435)    ; 0x1B3
+            PUT_INC(r2, 264)    ; 0x174
+            PUT_INC(r2, 239)    ; 0x0EF
+            ;Configurar imagenes
+            LEA(r2, Data_picA); Imagen de MxN
+            PUT_INC(r2, 4); Dimension de la imagen, M
+            PUT_INC(r2, 8); Dimension de la imagen, N
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00002100)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            LEA(r2, Data_picB); Imagen de MxN
+            PUT_INC(r2, 4); Dimension de la imagen, M
+            PUT_INC(r2, 8); Dimension de la imagen, N
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+
+            LEA(r2, Data_picC); Imagen de MxN
+            PUT_INC(r2, 4); Dimension de la imagen, M
+            PUT_INC(r2, 8); Dimension de la imagen, N
+            PUT_INC(r2, 0xAB01CB02)
+            PUT_INC(r2, 0x12345678)
+            PUT_INC(r2, 0x98765432)
+            PUT_INC(r2, 0x00002100)
+            PUT_INC(r2, 0xABCD0123)
+            PUT_INC(r2, 0x4567EFAB)
+            PUT_INC(r2, 0x01234567)
+            PUT_INC(r2, 0x89ABCDEF)
+            LEA(r2, Data_picD); Imagen de MxN
+            PUT_INC(r2, 4); Dimension de la imagen, M
+            PUT_INC(r2, 8); Dimension de la imagen, N
+            PUT_INC(r2, 0xAB01CB01)
+            PUT_INC(r2, 0x12345677)
+            PUT_INC(r2, 0x98765332)
+            PUT_INC(r2, 0x00002000)
+            PUT_INC(r2, 0xABCD0123)
+            PUT_INC(r2, 0x4566EFAB)
+            PUT_INC(r2, 0x00234567)
+            PUT_INC(r2, 0x88ABCDEF)
+
+            LEA(r2, Data_picE); Imagen de MxN
+            PUT_INC(r2, 5); Dimension de la imagen, M
+            PUT_INC(r2, 5); Dimension de la imagen, N
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00123400)
+            LEA(r2, Data_picF); Imagen de MxN
+            PUT_INC(r2, 5); Dimension de la imagen, M
+            PUT_INC(r2, 5); Dimension de la imagen, N
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00FEDC00)
+
+            LEA(r2, Data_picG); Imagen de MxN
+            PUT_INC(r2, 3); Dimension de la imagen, M
+            PUT_INC(r2, 3); Dimension de la imagen, N
+            PUT_INC(r2, 0x12345678)
+            PUT_INC(r2, 0xABCDEF00)
+            PUT_INC(r2, 0x230000FF)
+            LEA(r2, Data_picH); Imagen de MxN
+            PUT_INC(r2, 3); Dimension de la imagen, M
+            PUT_INC(r2, 3); Dimension de la imagen, N
+            PUT_INC(r2, 0x12345678)
+            PUT_INC(r2, 0xABCDEF00)
+            PUT_INC(r2, 0x000000FF)
+
+            LEA(r2, Data_picI); Imagen de MxN
+            PUT_INC(r2, 4); Dimension de la imagen, M
+            PUT_INC(r2, 8); Dimension de la imagen, N
+            PUT_INC(r2, 0xFF55FF55)
+            PUT_INC(r2, 0xFF55FF55)
+            PUT_INC(r2, 0x55FF55FF)
+            PUT_INC(r2, 0x55FF55FF)
+            PUT_INC(r2, 0xFF55FF55)
+            PUT_INC(r2, 0xFF55FF55)
+            PUT_INC(r2, 0x55FF55FF)
+            PUT_INC(r2, 0x55FF55FF)
+            LEA(r2, Data_picJ); Imagen de MxN
+            PUT_INC(r2, 4); Dimension de la imagen, M
+            PUT_INC(r2, 8); Dimension de la imagen, N
+            PUT_INC(r2, 0xFE54FE54)
+            PUT_INC(r2, 0xFE54FE54)
+            PUT_INC(r2, 0x57FD57FD)
+            PUT_INC(r2, 0x57FD57FD)
+            PUT_INC(r2, 0xFD54FE54)
+            PUT_INC(r2, 0xFE54FE54)
+            PUT_INC(r2, 0x53FD53FD)
+            PUT_INC(r2, 0x53FD53FD)
+
+            LEA(r2, Data_picK); Imagen de MxN
+            PUT_INC(r2, 4); Dimension de la imagen, M
+            PUT_INC(r2, 8); Dimension de la imagen, N
+            PUT_INC(r2, 0xD1000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00007A1D)
+            PUT_INC(r2, 0x01000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x000000FF)
+            LEA(r2, Data_picL); Imagen de MxN
+            PUT_INC(r2, 4); Dimension de la imagen, M
+            PUT_INC(r2, 8); Dimension de la imagen, N
+            PUT_INC(r2, 0x02000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000182)
+            PUT_INC(r2, 0xFF000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000010)
+
+            LEA(r2, Data_picM); Imagen de MxN
+            PUT_INC(r2, 8); Dimension de la imagen, M
+            PUT_INC(r2, 8); Dimension de la imagen, N
+            PUT_INC(r2, 0x10203040)
+            PUT_INC(r2, 0xFF000000)
+            PUT_INC(r2, 0x00FF0000)
+            PUT_INC(r2, 0x0000FF00)
+            PUT_INC(r2, 0x000000AA)
+            PUT_INC(r2, 0x90807060)
+            PUT_INC(r2, 0x11111111)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            LEA(r2, Data_picN); Imagen de MxN
+            PUT_INC(r2, 8); Dimension de la imagen, M
+            PUT_INC(r2, 8); Dimension de la imagen, N
+            PUT_INC(r2, 0x00102030)
+            PUT_INC(r2, 0xF0000000)
+            PUT_INC(r2, 0x000F0000)
+            PUT_INC(r2, 0x0000F000)
+            PUT_INC(r2, 0x000000A0)
+            PUT_INC(r2, 0x90807060)
+            PUT_INC(r2, 0x11111111)
+            PUT_INC(r2, 0x51000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00400000)
+            PUT_INC(r2, 0x00000000)
+
+            LEA(r2, Data_picO); Imagen de MxN
+            PUT_INC(r2, 3); Dimension de la imagen, M
+            PUT_INC(r2, 5); Dimension de la imagen, N
+            PUT_INC(r2, 0x02110023)
+            PUT_INC(r2, 0x00550033)
+            PUT_INC(r2, 0x2200FF00)
+            PUT_INC(r2, 0x00EE3300)
+            LEA(r2, Data_picP); Imagen de MxN
+            PUT_INC(r2, 3); Dimension de la imagen, M
+            PUT_INC(r2, 5); Dimension de la imagen, N
+            PUT_INC(r2, 0x02010022)
+            PUT_INC(r2, 0x00450037)
+            PUT_INC(r2, 0x2500F000)
+            PUT_INC(r2, 0xFF003300)
+            jmp (r1)
+
+ConfigT4:   LEA(r2, Data_numA)      ; Data_test4a
+            PUT_INC(r2, Data_picA)
+            LEA(r2, Data_numB)      ; Data_test4b
+            PUT_INC(r2, Data_picB)
+            PUT_INC(r2, Data_picC)
+            PUT_INC(r2, Data_picD)
+            PUT_INC(r2, Data_picE)
+            PUT_INC(r2, Data_picF)
+            PUT_INC(r2, Data_picG)
+            PUT_INC(r2, Data_picH)
+            PUT_INC(r2, Data_picI)
+            LEA(r2, Data_numC)      ; Data_resT4
+            PUT_INC(r2, 85)
+            PUT_INC(r2, 255)
+            PUT_INC(r2, 85)
+            PUT_INC(r2, -170)
+            PUT_INC(r2, 56)
+            PUT_INC(r2, 225)
+            PUT_INC(r2, 87)
+            PUT_INC(r2, 459)
+            LEA(r2, Data_picA); Subimagen
+            PUT_INC(r2, 0x12432055)
+            PUT_INC(r2, 0x45CCFF55)
+            PUT_INC(r2, 0x55)
+            ; Configurar filtros
+            LEA(r2, Data_picB)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            LEA(r2, Data_picC)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            LEA(r2, Data_picD)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 2)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 2)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            LEA(r2, Data_picE)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 2)
+            PUT_INC(r2, -1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            LEA(r2, Data_picF)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            LEA(r2, Data_picG)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 4)
+            LEA(r2, Data_picH)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            LEA(r2, Data_picI)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            jmp (r1)
+
+ConfigT5:   LEA(r2, Data_numA)      ; Data_test5a
+            PUT_INC(r2, Data_picA)
+            LEA(r2, Data_numB)      ; Data_test5b
+            PUT_INC(r2, Data_picB)
+            PUT_INC(r2, Data_picD)
+            PUT_INC(r2, Data_picF)
+            PUT_INC(r2, Data_picH)
+            PUT_INC(r2, Data_picJ)
+            PUT_INC(r2, Data_picL)
+            PUT_INC(r2, Data_picN)
+            PUT_INC(r2, Data_picP)
+            LEA(r2, Data_numC)      ; Data_test5c
+            PUT_INC(r2, 3)
+            PUT_INC(r2, 3)
+            PUT_INC(r2, 3)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 3)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 3)
+            PUT_INC(r2, 2)
+            LEA(r2, Data_numD)      ; Data_test5d
+            PUT_INC(r2, 6)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 3)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 2)
+            PUT_INC(r2, 2)
+            LEA(r2, Data_numE)      ; Data_resT5
+            PUT_INC(r2, Data_picC)
+            PUT_INC(r2, Data_picE)
+            PUT_INC(r2, Data_picG)
+            PUT_INC(r2, Data_picI)
+            PUT_INC(r2, Data_picK)
+            PUT_INC(r2, Data_picM)
+            PUT_INC(r2, Data_picO)
+            PUT_INC(r2, Data_picQ)
+            ; Configurar la imagen y subimagenes
+            LEA(r2, Data_picA)
+            PUT_INC(r2, 5)
+            PUT_INC(r2, 8)
+            PUT_INC(r2, 0x04030201)
+            PUT_INC(r2, 0x08070605)
+            PUT_INC(r2, 0x0C0B0A09)
+            PUT_INC(r2, 0x100F0E0D)
+            PUT_INC(r2, 0x14131211)
+            PUT_INC(r2, 0x18171615)
+            PUT_INC(r2, 0x1C1B1A19)
+            PUT_INC(r2, 0x201F1E1D)
+            PUT_INC(r2, 0x24232221)
+            PUT_INC(r2, 0x28272625)
+            LEA(r2, Data_picC)
+            PUT_INC(r2, 0x1E181716)
+            PUT_INC(r2, 0x2726201F)
+            PUT_INC(r2, 0xFFFFFF28)
+            LEA(r2, Data_picE)
+            PUT_INC(r2, 0x1C161514)
+            PUT_INC(r2, 0x25241E1D)
+            PUT_INC(r2, 0xFFFFFF26)
+            LEA(r2, Data_picG)
+            PUT_INC(r2, 0x19131211)
+            PUT_INC(r2, 0x22211B1A)
+            PUT_INC(r2, 0xFFFFFF23)
+            LEA(r2, Data_picI)
+            PUT_INC(r2, 0x09030201)
+            PUT_INC(r2, 0x12110B0A)
+            PUT_INC(r2, 0xFFFFFF13)
+            LEA(r2, Data_picK)
+            PUT_INC(r2, 0x1B151413)
+            PUT_INC(r2, 0x24231D1C)
+            PUT_INC(r2, 0xFFFFFF25)
+            LEA(r2, Data_picM)
+            PUT_INC(r2, 0x0C060504)
+            PUT_INC(r2, 0x15140E0D)
+            PUT_INC(r2, 0xFFFFFF16)
+            LEA(r2, Data_picO)
+            PUT_INC(r2, 0x1A141312)
+            PUT_INC(r2, 0x23221C1B)
+            PUT_INC(r2, 0xFFFFFF24)
+            LEA(r2, Data_picQ)
+            PUT_INC(r2, 0x120C0B0A)
+            PUT_INC(r2, 0x1B1A1413)
+            PUT_INC(r2, 0xFFFFFF1C)
+            jmp (r1)
+
+ConfigT6:   LEA(r2, Data_numA)      ; Data_test6a
+            PUT_INC(r2, Data_picA)
+            LEA(r2, Data_numB)      ; Data_test6b
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 2)
+            PUT_INC(r2, 3)
+            PUT_INC(r2, 3)
+            PUT_INC(r2, 3)
+            PUT_INC(r2, 2)
+            LEA(r2, Data_numC)      ; Data_test6c
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 2)
+            PUT_INC(r2, 3)
+            PUT_INC(r2, 3)
+            PUT_INC(r2, 3)
+            PUT_INC(r2, 2)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            LEA(r2, Data_numD)      ; Data_test6d
+            PUT_INC(r2, Data_picB)
+            LEA(r2, Data_numE)      ; Data_resT6
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 130)
+            PUT_INC(r2, 255)
+            PUT_INC(r2, 32)
+            PUT_INC(r2, 32)
+            PUT_INC(r2, 42)
+            PUT_INC(r2, 52)
+            PUT_INC(r2, 52)
+            ; Configurar imagen y filtro
+            LEA(r2, Data_picA)
+            PUT_INC(r2, 5)
+            PUT_INC(r2, 5)
+            PUT_INC(r2, 0x44332211)
+            PUT_INC(r2, 0x03020155)
+            PUT_INC(r2, 0x22210504)
+            PUT_INC(r2, 0x31252423)
+            PUT_INC(r2, 0x35343332)
+            PUT_INC(r2, 0x44434241)
+            PUT_INC(r2, 0x45)
+            LEA(r2, Data_picB)
+            PUT_INC(r2, 119)
+            PUT_INC(r2, 2)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, -99)
+            PUT_INC(r2, 2)
+            PUT_INC(r2, -129)
+            PUT_INC(r2, 2)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 89)
+            PUT_INC(r2, 2)
+            jmp (r1)
+
+ConfigT7:   LEA(r2, Data_numA)      ; Data_test7a
+            PUT_INC(r2, Data_picA)
+            PUT_INC(r2, Data_picC)
+            PUT_INC(r2, Data_picD)
+            PUT_INC(r2, Data_picE)
+            PUT_INC(r2, Data_picF)
+            PUT_INC(r2, Data_picG)
+            PUT_INC(r2, Data_picH)
+            PUT_INC(r2, Data_picI)
+            LEA(r2, Data_numB)      ; Data_test7b
+            PUT_INC(r2, Data_picC)
+            PUT_INC(r2, Data_picD)
+            PUT_INC(r2, Data_picE)
+            PUT_INC(r2, Data_picF)
+            PUT_INC(r2, Data_picG)
+            PUT_INC(r2, Data_picH)
+            PUT_INC(r2, Data_picI)
+            PUT_INC(r2, Data_picJ)
+            LEA(r2, Data_numC)      ; Data_test7c
+            PUT_INC(r2, Data_picB)
+            ; Configurar imagen y filtro
+            LEA(r2, Data_picA)
+            PUT_INC(r2, 6)
+            PUT_INC(r2, 12)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x04040400)
+            PUT_INC(r2, 0x04040404)
+            PUT_INC(r2, 0x00040404)
+            PUT_INC(r2, 0x04040400)
+            PUT_INC(r2, 0x04040404)
+            PUT_INC(r2, 0x00040404)
+            PUT_INC(r2, 0x04040400)
+            PUT_INC(r2, 0x04040404)
+            PUT_INC(r2, 0x00040404)
+            PUT_INC(r2, 0x04040400)
+            PUT_INC(r2, 0x04040404)
+            PUT_INC(r2, 0x00040404)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            LEA(r2, Data_picB)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            jmp (r1)
+
+ConfigT8:   LEA(r2, Data_numA)      ; Data_test8a
+            PUT_INC(r2, Data_picA)
+            PUT_INC(r2, Data_picA)
+            PUT_INC(r2, Data_picE)
+            PUT_INC(r2, Data_picE)
+            PUT_INC(r2, Data_picI)
+            PUT_INC(r2, Data_picI)
+            PUT_INC(r2, Data_picM)
+            PUT_INC(r2, Data_picM)
+            LEA(r2, Data_numB)      ; Data_test8b
+            PUT_INC(r2, Data_picC)
+            PUT_INC(r2, Data_picD)
+            PUT_INC(r2, Data_picG)
+            PUT_INC(r2, Data_picH)
+            PUT_INC(r2, Data_picK)
+            PUT_INC(r2, Data_picL)
+            PUT_INC(r2, Data_picO)
+            PUT_INC(r2, Data_picP)
+            LEA(r2, Data_numC)      ; Data_test8c
+            PUT_INC(r2, Data_picB)
+            PUT_INC(r2, Data_picB)
+            PUT_INC(r2, Data_picF)
+            PUT_INC(r2, Data_picF)
+            PUT_INC(r2, Data_picJ)
+            PUT_INC(r2, Data_picB)
+            PUT_INC(r2, Data_picN)
+            PUT_INC(r2, Data_picZ)
+            LEA(r2, Data_numD)      ; Data_test8d
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 20)
+            PUT_INC(r2, 40)
+            PUT_INC(r2, 45)
+            PUT_INC(r2, 300)
+            PUT_INC(r2, 10)
+            PUT_INC(r2, 20)
+            PUT_INC(r2, 5)
+            LEA(r2, Data_numE)      ; Data_test8e
+            PUT_INC(r2, 8)
+            PUT_INC(r2, 2)
+            PUT_INC(r2, 12)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 3)
+            PUT_INC(r2, 3)
+            PUT_INC(r2, 5)
+            PUT_INC(r2, 1)
+            LEA(r2, Data_numF)      ; Data_resT8a
+            PUT_INC(r2, -1)
+            PUT_INC(r2, 8)
+            PUT_INC(r2, 16)
+            PUT_INC(r2, 42)
+            PUT_INC(r2, 282)
+            PUT_INC(r2, 3)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, -1)
+            LEA(r2, Data_numG)      ; Data_resT8b, NOT IMPLEMENT
+            PUT_INC(r2, Data_picQ)
+            PUT_INC(r2, Data_picR)
+            PUT_INC(r2, Data_picS)
+            PUT_INC(r2, Data_picT)
+            PUT_INC(r2, Data_picU)
+            PUT_INC(r2, Data_picV)
+            PUT_INC(r2, Data_picW)
+            PUT_INC(r2, Data_picX)
+            LEA(r2, Data_numH)      ; Data_resT8c, NOT IMPLEMENT
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 10)
+            PUT_INC(r2, 3)
+            PUT_INC(r2, 2)
+            PUT_INC(r2, 2)
+            PUT_INC(r2, 3)
+            PUT_INC(r2, 0)
+            ; Configuracion de imagenes y filtros
+            LEA(r2, Data_picA)
+            PUT_INC(r2, 6)
+            PUT_INC(r2, 12)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x04040400)
+            PUT_INC(r2, 0x04040404)
+            PUT_INC(r2, 0x00040404)
+            PUT_INC(r2, 0x04040400)
+            PUT_INC(r2, 0x04040404)
+            PUT_INC(r2, 0x00040404)
+            PUT_INC(r2, 0x04040400)
+            PUT_INC(r2, 0x04040404)
+            PUT_INC(r2, 0x00040404)
+            PUT_INC(r2, 0x04040400)
+            PUT_INC(r2, 0x04040404)
+            PUT_INC(r2, 0x00040404)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            PUT_INC(r2, 0x00000000)
+            LEA(r2, Data_picB)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            LEA(r2, Data_picE)
+            PUT_INC(r2, 5)
+            PUT_INC(r2, 8)
+            PUT_INC(r2, 0x04030201)
+            PUT_INC(r2, 0x08070605)
+            PUT_INC(r2, 0x0C0B0A09)
+            PUT_INC(r2, 0x100F0E0D)
+            PUT_INC(r2, 0x14131211)
+            PUT_INC(r2, 0x18171615)
+            PUT_INC(r2, 0x1C1B1A19)
+            PUT_INC(r2, 0x201F1E1D)
+            PUT_INC(r2, 0x24232221)
+            PUT_INC(r2, 0x28272625)
+            LEA(r2, Data_picF)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 16)
+            LEA(r2, Data_picI)
+            PUT_INC(r2, 5)
+            PUT_INC(r2, 5)
+            PUT_INC(r2, 0x44332211)
+            PUT_INC(r2, 0x03020155)
+            PUT_INC(r2, 0x22210504)
+            PUT_INC(r2, 0x31252423)
+            PUT_INC(r2, 0x35343332)
+            PUT_INC(r2, 0x44434241)
+            PUT_INC(r2, 0x45)
+            LEA(r2, Data_picJ)
+            PUT_INC(r2, 119)
+            PUT_INC(r2, 2)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, -99)
+            PUT_INC(r2, 2)
+            PUT_INC(r2, -129)
+            PUT_INC(r2, 2)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 89)
+            PUT_INC(r2, 2)
+            LEA(r2, Data_picM)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 8)
+            PUT_INC(r2, 0xFE54FE54)
+            PUT_INC(r2, 0xFE54FE54)
+            PUT_INC(r2, 0x57FD57FD)
+            PUT_INC(r2, 0x57FD57FD)
+            PUT_INC(r2, 0xFD54FE54)
+            PUT_INC(r2, 0xFE54FE54)
+            PUT_INC(r2, 0x53FD53FD)
+            PUT_INC(r2, 0x53FD53FD)
+            LEA(r2, Data_picN)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 2)
+            PUT_INC(r2, -1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 0)
+            PUT_INC(r2, 1)
+            LEA(r2, Data_picZ)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 4)
+            PUT_INC(r2, 1)
+            PUT_INC(r2, 4)
+            ; NOT IMPLEMENTED
+            ;LEA(r2, Data_picQ)
+            ;LEA(r2, Data_picR)
+            ;LEA(r2, Data_picS)
+            ;LEA(r2, Data_picT)
+            ;LEA(r2, Data_picU)
+            ;LEA(r2, Data_picV)
+            ;LEA(r2, Data_picW)
+            ;LEA(r2, Data_picX)
+            jmp (r1)
