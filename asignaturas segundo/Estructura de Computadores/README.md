@@ -2,8 +2,8 @@ Estructura de Computadores
 ==========================
 
 ## Contenidos
-- [own_emu.c](./#own_emuc)
-- [tester.ens](./#testerens)
+- [own_emu.c](#own_emuc)
+- [tester.ens](#testerens)
 
 
 ### own_emu.c
