@@ -13,3 +13,5 @@ Aunque ese es el comportamiento habitual, se puede especificar que solo se hagan
 - TESTEAR(subrutina)
 - TESTWB(subrutina)
 ```
+
+Donde en *subrutina* se especifica el nombre de la subrutina a testear, la gran diferencia de ambas subrutinas es que `TESTEAR` va siempre a hacer un `stop` al final de realizar el test especificado, si se desea agrupar varios tests se debe usar `TESTWB`.
