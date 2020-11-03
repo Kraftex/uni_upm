@@ -9,7 +9,8 @@ Esa gran asignatura del DATSI que nos da pesadillas en binario, complemento A1 y
 
 
 ### own_emu.c
-Implementación propia del mc88110.
+Implementación propia del mc88110.\
+La implementación contempla todas las funciones que emula el original pero no están implementadas aún las referentes a la coma flotante.
 
    ***
 ### tester.ens
