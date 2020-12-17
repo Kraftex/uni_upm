@@ -23,10 +23,10 @@ Aunque ese es el comportamiento habitual, se puede especificar que solo se hagan
 - TESTWB(subrutina)
 ```
 
-Donde en *subrutina* se especifica el nombre de la subrutina a testear, la gran diferencia de ambas subrutinas es que `TESTEAR` va siempre a hacer un `stop` al final de realizar el test especificado, si se desea agrupar varios tests se debe usar `TESTWB`.
+Donde en *subrutina* se especifica el nombre de la subrutina a testear, la gran diferencia de ambas subrutinas es que `TESTEAR` va siempre a hacer un `stop` al final de realizar el test especificado, si se desea agrupar varios tests se debe usar `TESTWB` otro añadido que incluyen es que si la subrutina está vacía, es decir, solo hay un **jmp (r1)** no se realizará el test a la subrutina.
 
 **Interpretación de los registros del 1 al 28**\
-Después de la llamada a un test siempre se llama o se debería de llamar a la subrutina `Check` y procederá a escribir en todos los registros mencionados una serie de valores (1, A, F) para componer una palabra de 4 carateres de las siguientes: **PASS** y **FAIL**. Otra palabra que puede aparecer es **WTF** en relacion al pasarle a `TESTEAR` o `TESTWB` una etiqueta que no corresponda a una subrutina que disponga de test.\
+Después de la llamada a un test siempre se llama o se debería de llamar a la subrutina `Check` y procederá a escribir en todos los registros mencionados una serie de valores (1, A, E, F) para componer una palabra de 4 carateres de las siguientes: **PASS** y **FAIL**. Otra palabra que puede aparecer es **WTF** en relacion al pasarle a `TESTEAR` o `TESTWB` una etiqueta que no corresponda a una subrutina que disponga de test, también puede aparecer **SNI** debido a que la subrutina está vacía y solo posee el retorno (**jmp (r1)**).\
 **- Ejemplo**: 
 ```
  R01 = AAAAAA11 h R02 = 111AA111 h R03 = 11AAAA11 h R04 = 11AAAA11 h
@@ -41,7 +41,7 @@ Después de la llamada a un test siempre se llama o se debería de llamar a la s
 El test ha salido perfecto y usando A se escribe **PASS**(Pista: Ctrl+F AA).
 
 **Interpretación del resultado de r29**\
-Como un registro de 32b puede representarse usando 8 caracteres hexadecimales, es el motivo por el que se hacen solo 8 pruebas. La posición donde se encuentre el carácter indica el número interno de la prueba. El carácter en cuentión será siempre **A** cuando sea correcto pero cualquier otro carácter indicará que se produjo un error en alguna verificación de la prueba, normalmente se usará la **F**.\
+Como un registro de 32b puede representarse usando 8 caracteres hexadecimales, es el motivo por el que se hacen solo 8 pruebas. La posición donde se encuentre el carácter indica el número interno de la prueba. El carácter en cuestión será siempre **A** cuando sea correcto pero cualquier otro carácter indicará que se produjo un error en alguna verificación de la prueba, normalmente se usará la **F**. Otro posible valor que puede tomar este registro es `01C000F4` al usar `TESTWB` o `TESTEAR`.\
 **- Ejemplo**:\
 `R29 = AAAAAFAF h`\
 Indica que dos pruebas no fueron bien y corresponden a la prueba 6 y 8.
@@ -57,3 +57,9 @@ Ejecutar `d 0x4a8 1` y al inicio de la linea que escribe aparece la subrutina/te
 A lo largo del todo el test existen un montón de etiquetas, no todas son tan importantes. La más importante en relación al resultado de las pruebas es `Get_wellTX`(donde **X** es el Nº del test y se reservó memoría para guardar el valor de dicho test). Otras de gran interés son: `bcl_X`(**X**=Nº Test, etiqueta para el bucle), `bsr_X`(**X**=Nº Test, etiqueta localizada justo cuando se va a llamar a la subrutina a testear), `actgw_X`(**X**=Nº Test, etiqueta que está colocada antes de las comprobaciones para saber si la prueba fue bien o mal), `Data_numL`(**L**=Letra, variables globales que usa cada test para almacenar datos de entrada o resultados), `Data_picL`(**L**=Letra, variables globales que usa cada test para almacenar imagenes) y `ConfigTX`(**X**=Nº Test, subrutina que tiene el único fin de configurar todas las varibles globales mencionadas anteriormente).\
 Para revisar el resultado de `Get_wellTX` ejecutar `v Get_wellTX 1`.\
 Para revisar los valores de `Data_numL` ejecutar `v Data_numL 8`, hay más de un valor ya que realmente es un array de numeros.
+
+**Cambios**\
+**- V2.3**
+Arreglado el conflicto de las macros de testeo (`TESTWB`, `TESTEAR`) al estar declarados solo como macros las etiquetas se duplicaban e impedía el uso de usarlas varias veces sobre todo `TESTWB`.\
+Las palabras/letras que se escriban usando **E** son cosideradas errores no relacionados directamente con lo que devuelve de resultado la subrutina, así `WTF` ha pasado a usar **E** y `SNI` también las usa.\
+Se ha añadido el nuevo acrónimo visual `SNI` cuyo significado es **S**ubrutine **N**ot **I**mplemented.\

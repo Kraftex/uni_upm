@@ -1,6 +1,7 @@
 ; --------------------------------------------->
 ;   Autor: Julian C
-;   Version: 2.1
+;   Version: 2.3
+;   Ultima revision: 17-12-2020
 ; --------------------------------------------->
 ; El tester funciona de esta manera, se llama en forma de subrutina
 ; a un test (dentro de este se realizaran 8 pruebas
@@ -66,27 +67,27 @@ INITSTACK:  MACRO   (ETIQ)
             ENDMACRO
 
 WTF:        MACRO   ( )
-            LEA(r01, 0xFF1111FF)    ; FF    FF
-            LEA(r05, 0xFF1111FF)    ; FF    FF 
-            LEA(r09, 0xFF1111FF)    ; FF    FF 
-            LEA(r13, 0xFF1111FF)    ; FF    FF 
-            LEA(r17, 0xFF1FF1FF)    ; FF FF FF 
-            LEA(r21, 0xFF1FF1FF)    ; FF FF FF 
-            LEA(r25, 0x1FF11FF1)    ;  FF  FF  
-            LEA(r02, 0xFFFFFFFF)    ;         FFFFFFFF
-            LEA(r06, 0x111FF111)    ;            FF   
-            LEA(r10, 0x111FF111)    ;            FF   
-            LEA(r14, 0x111FF111)    ;            FF   
-            LEA(r18, 0x111FF111)    ;            FF   
-            LEA(r22, 0x111FF111)    ;            FF   
-            LEA(r26, 0x111FF111)    ;            FF   
-            LEA(r03, 0xFFFFFFFF)    ;                 FFFFFFFF
-            LEA(r07, 0xFF111111)    ;                 FF     
-            LEA(r11, 0xFF111111)    ;                 FF     
-            LEA(r15, 0xFFFFFF11)    ;                 FFFFFF 
-            LEA(r19, 0xFF111111)    ;                 FF     
-            LEA(r23, 0xFF111111)    ;                 FF     
-            LEA(r27, 0xFF111111)    ;                 FF    
+            LEA(r01, 0xEE1111EE)    ; EE    EE
+            LEA(r05, 0xEE1111EE)    ; EE    EE 
+            LEA(r09, 0xEE1111EE)    ; EE    EE 
+            LEA(r13, 0xEE1111EE)    ; EE    EE 
+            LEA(r17, 0xEE1EE1EE)    ; EE EE EE 
+            LEA(r21, 0xEE1EE1EE)    ; EE EE EE 
+            LEA(r25, 0x1EE11EE1)    ;  EE  EE  
+            LEA(r02, 0xEEEEEEEE)    ;         EEEEEEEE
+            LEA(r06, 0x111EE111)    ;            EE   
+            LEA(r10, 0x111EE111)    ;            EE   
+            LEA(r14, 0x111EE111)    ;            EE   
+            LEA(r18, 0x111EE111)    ;            EE   
+            LEA(r22, 0x111EE111)    ;            EE   
+            LEA(r26, 0x111EE111)    ;            EE   
+            LEA(r03, 0xEEEEEEEE)    ;                 EEEEEEEE
+            LEA(r07, 0xEE111111)    ;                 EE     
+            LEA(r11, 0xEE111111)    ;                 EE     
+            LEA(r15, 0xEEEEEE11)    ;                 EEEEEE 
+            LEA(r19, 0xEE111111)    ;                 EE     
+            LEA(r23, 0xEE111111)    ;                 EE     
+            LEA(r27, 0xEE111111)    ;                 EE    
             LEA(r04, 0x11111111)    ;
             LEA(r08, 0x11111111)    ;
             LEA(r12, 0x11111111)    ;
@@ -190,6 +191,37 @@ PASS:       MACRO   ( )
             LEA(r28, 0x11AAAA11)    ;                           AAAA
             ENDMACRO
 
+SNI:        MACRO   ( )
+            LEA(r01, 0x11EEEE11)    ;   EEEE  
+            LEA(r05, 0xEE1111EE)    ; EE    EE
+            LEA(r09, 0xEE111111)    ; EE      
+            LEA(r13, 0x11EEEE11)    ;   EEEE  
+            LEA(r17, 0x111111EE)    ;       EE
+            LEA(r21, 0xEE1111EE)    ; EE    EE
+            LEA(r25, 0x11EEEE11)    ;   EEEE
+            LEA(r02, 0xEE1111EE)    ;         EE    EE
+            LEA(r06, 0xEEE111EE)    ;         EEE   EE
+            LEA(r10, 0xEEEE11EE)    ;         EEEE  EE
+            LEA(r14, 0xEE1EE1EE)    ;         EE EE EE
+            LEA(r18, 0xEE11EEEE)    ;         EE  EEEE
+            LEA(r22, 0xEE111EEE)    ;         EE   EEE
+            LEA(r26, 0xEE1111EE)    ;         EE    EE
+            LEA(r03, 0x1EEEEEE1)    ;                  EEEEEE 
+            LEA(r07, 0x111EE111)    ;                    EE   
+            LEA(r11, 0x111EE111)    ;                    EE   
+            LEA(r15, 0x111EE111)    ;                    EE   
+            LEA(r19, 0x111EE111)    ;                    EE   
+            LEA(r23, 0x111EE111)    ;                    EE   
+            LEA(r27, 0x1EEEEEE1)    ;                  EEEEEE
+            LEA(r04, 0x11111111)    ;                                 
+            LEA(r08, 0x11111111)    ;                                 
+            LEA(r12, 0x11111111)    ;                                 
+            LEA(r16, 0x11111111)    ;                                 
+            LEA(r20, 0x11111111)    ;                                 
+            LEA(r24, 0x11111111)    ;                                 
+            LEA(r28, 0x11111111)    ;                               
+            ENDMACRO
+
 PUT_GEN:    MACRO   (r_gen, DATA)   ; For GWT
             mak r_gen, r_gen, 0<4>  ; 0x0000000F -> 0x000000F0
             addu r_gen, r_gen, DATA
@@ -216,115 +248,16 @@ PUT_F_OR_A: MACRO   (r_cmp, r_gwt)
 
 ;subr: la direccion donde está la subrutina a testear
 ;BLOCK
-TESTEAR:    MACRO   (subr)          ; subr, deberá ser el identificador de la subrutina a testear
+TESTEAR:    MACRO(subr)
             LEA(r28, subr)
-            LEA(r29, FiltRec)
-            cmp r27, r28, r29
-            bb0 eq, r27, 4
-            bsr Test_8
-            bsr Check
-TFiltRec:   stop
-            LEA(r29, Filtro)
-            cmp r27, r28, r29
-            bb0 eq, r27, 4
-            bsr Test_7
-            bsr Check
-TFiltro:    stop
-            LEA(r29, FilPixel)
-            cmp r27, r28, r29
-            bb0 eq, r27, 4
-            bsr Test_6
-            bsr Check
-TFilPixel:  stop
-            LEA(r29, SubMatriz)
-            cmp r27, r28, r29
-            bb0 eq, r27, 4
-            bsr Test_5
-            bsr Check
-TSubMatriz: stop
-            LEA(r29, ValorPixel)
-            cmp r27, r28, r29
-            bb0 eq, r27, 4
-            bsr Test_4
-            bsr Check
-TValorPixel:stop
-            LEA(r29, Comp)
-            cmp r27, r28, r29
-            bb0 eq, r27, 4
-            bsr Test_3
-            bsr Check
-TComp:      stop
-            LEA(r29, Sqrt)
-            cmp r27, r28, r29
-            bb0 eq, r27, 4
-            bsr Test_2
-            bsr Check
-TSqrt:      stop
-            LEA(r29, nFiltrados)
-            cmp r27, r28, r29
-            bb0 eq, r27, 4
-            bsr Test_1
-            bsr Check
-TnFiltrados:stop
-            WTF( )                  ; WTF
-WAYD:       stop
+            bsr Testear
             ENDMACRO
 
 ;subr: la direccion donde está la subrutina a testear
 ;NOT BLOCK
-TESTWB:     MACRO   (subr)          ; subr, deberá ser el identificador de la subrutina a testear
+TESTWB:     MACRO(subr)
             LEA(r28, subr)
-            LEA(r29, FiltRec)
-            cmp r27, r28, r29
-            bb0 eq, r27, 4
-            bsr Test_8
-            bsr CheckWB
-            br testwbf
-tFiltRec:   LEA(r29, Filtro)
-            cmp r27, r28, r29
-            bb0 eq, r27, 4
-            bsr Test_7
-            bsr CheckWB
-            br testwbf
-tFiltro:    LEA(r29, FilPixel)
-            cmp r27, r28, r29
-            bb0 eq, r27, 4
-            bsr Test_6
-            bsr CheckWB
-            br testwbf
-tFilPixel:  LEA(r29, SubMatriz)
-            cmp r27, r28, r29
-            bb0 eq, r27, 4
-            bsr Test_5
-            bsr CheckWB
-            br testwbf
-tSubMatriz: LEA(r29, ValorPixel)
-            cmp r27, r28, r29
-            bb0 eq, r27, 4
-            bsr Test_4
-            bsr CheckWB
-            br testwbf
-tValorPixel:LEA(r29, Comp)
-            cmp r27, r28, r29
-            bb0 eq, r27, 4
-            bsr Test_3
-            bsr CheckWB
-            br testwbf
-tComp:      LEA(r29, Sqrt)
-            cmp r27, r28, r29
-            bb0 eq, r27, 4
-            bsr Test_2
-            bsr CheckWB
-            br testwbf
-tSqrt:      LEA(r29, nFiltrados)
-            cmp r27, r28, r29
-            bb0 eq, r27, 4
-            bsr Test_1
-            bsr CheckWB
-            br testwbf
-tnFiltrados:WTF( )                  ; WTF
-wayd:       stop
-testwbf:    and r0, r0, r0          ; Intruccion relleno ya que 'no existe' nop...
+            bsr TestWB
             ENDMACRO
 
         ;org 0
@@ -387,9 +320,201 @@ RstDmb:     addu r29, r29, r23
 CmpDmb:     cmp r22, r27, 0         ; r27 == 0?
             bb0 eq, r22, BclDmb
 FinBclDmb:  jmp (r1)
+
+;Testear
+Testear:    LEA(r29, FiltRec)
+            cmp r27, r28, r29
+            bb0 eq, r27, 11         ; Salta 11 instrucciones si r28 != r29
+            ld r29, r29, 0          ; Cargar la instruccion
+            LEA(r1, Get_wellT8)     ; Cargar la etiqueta donde se almacena la información del test
+            LEA(r27, 0x01C000F4)    ; Instruccion 'jmp (r1)'
+            cmp r27, r27, r29       ; La 1ª intruccion es la anterior entonces la subrutina está vacía
+            bb1 eq, r27, Testearf   ; Al estar vacía la subrutina nos la saltamos
+            bsr Test_8
+            bsr Check
+TFiltRec:   stop
+            LEA(r29, Filtro)
+            cmp r27, r28, r29
+            bb0 eq, r27, 11
+            ld r29, r29, 0
+            LEA(r1, Get_wellT7)
+            LEA(r27, 0x01C000F4)
+            cmp r27, r27, r29
+            bb1 eq, r27, Testearf
+            bsr Test_7
+            bsr Check
+TFiltro:    stop
+            LEA(r29, FilPixel)
+            cmp r27, r28, r29
+            bb0 eq, r27, 11
+            ld r29, r29, 0
+            LEA(r1, Get_wellT6)
+            LEA(r27, 0x01C000F4)
+            cmp r27, r27, r29
+            bb1 eq, r27, Testearf
+            bsr Test_6
+            bsr Check
+TFilPixel:  stop
+            LEA(r29, SubMatriz)
+            cmp r27, r28, r29
+            bb0 eq, r27, 11
+            ld r29, r29, 0
+            LEA(r1, Get_wellT5)
+            LEA(r27, 0x01C000F4)
+            cmp r27, r27, r29
+            bb1 eq, r27, Testearf
+            bsr Test_5
+            bsr Check
+TSubMatriz: stop
+            LEA(r29, ValorPixel)
+            cmp r27, r28, r29
+            bb0 eq, r27, 11
+            ld r29, r29, 0
+            LEA(r1, Get_wellT4)
+            LEA(r27, 0x01C000F4)
+            cmp r27, r27, r29
+            bb1 eq, r27, Testearf
+            bsr Test_4
+            bsr Check
+TValorPixel:stop
+            LEA(r29, Comp)
+            cmp r27, r28, r29
+            bb0 eq, r27, 11
+            ld r29, r29, 0
+            LEA(r1, Get_wellT3)
+            LEA(r27, 0x01C000F4)
+            cmp r27, r27, r29
+            bb1 eq, r27, Testearf
+            bsr Test_3
+            bsr Check
+TComp:      stop
+            LEA(r29, Sqrt)
+            cmp r27, r28, r29
+            bb0 eq, r27, 11
+            ld r29, r29, 0
+            LEA(r1, Get_wellT2)
+            LEA(r27, 0x01C000F4)
+            cmp r27, r27, r29
+            bb1 eq, r27, Testearf
+            bsr Test_2
+            bsr Check
+TSqrt:      stop
+            LEA(r29, nFiltrados)
+            cmp r27, r28, r29
+            bb0 eq, r27, 11
+            ld r29, r29, 0
+            LEA(r1, Get_wellT1)
+            LEA(r27, 0x01C000F4)
+            cmp r27, r27, r29
+            bb1 eq, r27, Testearf
+            bsr Test_1
+            bsr Check
+TnFiltrados:stop
+            WTF( )                  ; WTF
+WAYD:       stop
+Testearf:   st r29, r1, 0
+            SNI( )
+TSNI:       stop
+
+;TestWB
+TestWB:     PUSH(r1)
+            LEA(r29, FiltRec)
+            cmp r27, r28, r29
+            bb0 eq, r27, 11         ; Salta 11 instrucciones si r28 != r29
+            ld r29, r29, 0          ; Cargar la instruccion
+            LEA(r1, Get_wellT8)     ; Cargar la etiqueta donde se almacena la información del test
+            LEA(r27, 0x01C000F4)    ; Instruccion 'jmp (r1)'
+            cmp r27, r27, r29       ; La 1ª intruccion es la anterior entonces la subrutina está vacía
+            bb1 eq, r27, tsni       ; Al estar vacía la subrutina nos la saltamos
+            bsr Test_8
+            bsr CheckWB
+tFiltRec:   br testwbf
+            LEA(r29, Filtro)
+            cmp r27, r28, r29
+            bb0 eq, r27, 11
+            ld r29, r29, 0
+            LEA(r1, Get_wellT7)
+            LEA(r27, 0x01C000F4)
+            cmp r27, r27, r29
+            bb1 eq, r27, tsni
+            bsr Test_7
+            bsr CheckWB
+tFiltro:    br testwbf
+            LEA(r29, FilPixel)
+            cmp r27, r28, r29
+            bb0 eq, r27, 11
+            ld r29, r29, 0
+            LEA(r1, Get_wellT6)
+            LEA(r27, 0x01C000F4)
+            cmp r27, r27, r29
+            bb1 eq, r27, tsni
+            bsr Test_6
+            bsr CheckWB
+tFilPixel:  br testwbf
+            LEA(r29, SubMatriz)
+            cmp r27, r28, r29
+            bb0 eq, r27, 11
+            ld r29, r29, 0
+            LEA(r1, Get_wellT5)
+            LEA(r27, 0x01C000F4)
+            cmp r27, r27, r29
+            bb1 eq, r27, tsni
+            bsr Test_5
+            bsr CheckWB
+tSubMatriz: br testwbf
+            LEA(r29, ValorPixel)
+            cmp r27, r28, r29
+            bb0 eq, r27, 11
+            ld r29, r29, 0
+            LEA(r1, Get_wellT4)
+            LEA(r27, 0x01C000F4)
+            cmp r27, r27, r29
+            bb1 eq, r27, tsni
+            bsr Test_4
+            bsr CheckWB
+tValorPixel:br testwbf
+            LEA(r29, Comp)
+            cmp r27, r28, r29
+            bb0 eq, r27, 11
+            ld r29, r29, 0
+            LEA(r1, Get_wellT3)
+            LEA(r27, 0x01C000F4)
+            cmp r27, r27, r29
+            bb1 eq, r27, tsni
+            bsr Test_3
+            bsr CheckWB
+tComp:      br testwbf
+            LEA(r29, Sqrt)
+            cmp r27, r28, r29
+            bb0 eq, r27, 11
+            ld r29, r29, 0
+            LEA(r1, Get_wellT2)
+            LEA(r27, 0x01C000F4)
+            cmp r27, r27, r29
+            bb1 eq, r27, tsni
+            bsr Test_2
+            bsr CheckWB
+tSqrt:      br testwbf
+            LEA(r29, nFiltrados)
+            cmp r27, r28, r29
+            bb0 eq, r27, 11
+            ld r29, r29, 0
+            LEA(r1, Get_wellT1)
+            LEA(r27, 0x01C000F4)
+            cmp r27, r27, r29
+            bb1 eq, r27, tsni
+            bsr Test_1
+            bsr CheckWB
+tnFiltrados:br testwbf
+            WTF( )                  ; WTF
+wayd:       stop
+tsni:       st r29, r1, 0
+            SNI( )
+testwbf:    POP(r31)                ; Testear
+            jmp (r31)
 ; Hasta aquí.
 
-main:       INITSTACK(0x00020000); Inicializar la Pila
+main:       INITSTACK(0x00020000)   ; Inicializar la Pila
     T0:     bsr Test_1              ; Test para nFiltrados
             bsr Check
     T1:     bsr Test_2              ; Test para Sqrt
